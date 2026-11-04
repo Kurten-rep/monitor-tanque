@@ -513,20 +513,25 @@ footer a:hover{color:var(--text)}
       var known = (r.modo === 0 || r.modo === MODE_CAL) && (r.err === 0 || r.err === ERR_SENSOR);
       var ok = known && r.err !== ERR_SENSOR && r.modo !== MODE_CAL && r.d != null;
       var lv = ok ? level(r.d) : null;
-      return { t: r.t, d: r.d, modo: r.modo, err: r.err,
+      // Más lejos que el fondo = medición imposible: no es nivel 0, es lectura inválida
+      var badRange = !!lv && lv.out === 'bajo';
+      if (badRange) lv = null;
+      return { t: r.t, d: r.d, modo: r.modo, err: r.err, badRange: badRange,
         pct: lv ? lv.pct : null, h: lv ? lv.h : null, litros: lv ? lv.litros : null, out: lv ? lv.out : null };
     });
   }
 
   function findEvents(data) {
     // Histéresis: una alerta se rearma solo cuando el nivel se aleja HYST puntos del umbral
-    var u = cfg.umbrales, ev = [], pv = null, prevErr = false, prevCal = false;
+    var u = cfg.umbrales, ev = [], pv = null, prevErr = false, prevCal = false, prevRange = false;
     var lowArmed = true, highArmed = true;
     data.forEach(function (d) {
       if (d.modo === MODE_CAL) { if (!prevCal) ev.push({ t: d.t, kind: 'cal' }); prevCal = true; return; }
       prevCal = false;
       if (d.err === ERR_SENSOR) { if (!prevErr) ev.push({ t: d.t, kind: 'err' }); prevErr = true; return; }
       prevErr = false;
+      if (d.badRange) { if (!prevRange) ev.push({ t: d.t, kind: 'range', d: d.d }); prevRange = true; return; }
+      prevRange = false;
       if (d.pct == null) return;
       if (pv) {
         if (d.pct - pv.pct >= FILL_JUMP_PCT) ev.push({ t: d.t, kind: 'fill', pct: d.pct });
@@ -552,6 +557,7 @@ footer a:hover{color:var(--text)}
       low: ['Nivel bajo', '⚠️', '--warn'],
       high: ['Nivel alto', '⬆️', '--bad'],
       err: ['Falla del sensor', '✖', '--idle'],
+      range: ['Lectura fuera de rango', '↯', '--warn'],
       cal: ['Modo calibración', '🔧', '--idle']
     };
     ev.slice(-8).reverse().forEach(function (e) {
@@ -633,9 +639,15 @@ footer a:hover{color:var(--text)}
     drawTank(lastValid ? lastValid.pct : null);
     $('levelCm').textContent = lastValid ? lastValid.h.toFixed(1) + ' cm' : '--';
     $('levelHint').textContent = lastValid ? 'altura de agua · sensor a ' + lastValid.d.toFixed(1) + ' cm' : 'altura de agua';
-    var outNow = lastValid && lastValid.out;
-    $('rangeWarn').hidden = !outNow;
-    $('rangeWarn').textContent = outNow ? rangeText(lastValid.d, cal, outNow) : '';
+    // Aviso según la ÚLTIMA lectura: inválida por estar más allá del fondo, o por encima de "lleno"
+    var warn = '';
+    if (last && last.badRange && cal) {
+      warn = rangeText(last.d, cal, 'bajo') + (lastValid ? ' Se muestra el último nivel confiable (' + fmtDate(lastValid.t) + ').' : '');
+    } else if (last && last === lastValid && last.out === 'alto') {
+      warn = rangeText(last.d, cal, 'alto');
+    }
+    $('rangeWarn').hidden = !warn;
+    $('rangeWarn').textContent = warn;
     $('liters').textContent = lastValid ? fmtL(lastValid.litros) : '--';
     $('capHint').textContent = cap ? 'de ' + fmtL(cap) : 'requiere calibración';
     $('tankCap').textContent = lastValid ? fmtL(lastValid.litros) : '';
