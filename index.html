@@ -1,0 +1,812 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nivel del tanque</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f3f6f9;--card:#ffffff;--text:#0f1c2e;--muted:#5b6b7f;--line:#e2e8ef;
+  --water:#2f8fe0;--water-2:#69b8f4;--tank:#cfd9e4;
+  --ok:#1a9468;--warn:#c9731f;--bad:#cf3f3f;--idle:#6b7a8c;
+  --shadow:0 1px 2px rgba(15,28,46,.05),0 6px 20px rgba(15,28,46,.06);
+  --radius:16px;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#0c131b;--card:#141e29;--text:#e6ecf3;--muted:#93a3b5;--line:#233140;
+    --water:#3d9ce9;--water-2:#74c1f7;--tank:#2b3a4b;--shadow:none}
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);
+  -webkit-font-smoothing:antialiased;line-height:1.45}
+.wrap{max-width:1040px;margin:0 auto;padding:24px 16px 40px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+.brand h1{font-size:22px;font-weight:700;margin:0;letter-spacing:-.01em}
+.brand p{margin:2px 0 0;color:var(--muted);font-size:14px}
+.actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.badge{font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;background:color-mix(in srgb,var(--warn) 14%,transparent);color:var(--warn)}
+.btn{font:inherit;font-size:14px;font-weight:500;border:1px solid var(--line);background:var(--card);color:var(--text);
+  padding:8px 14px;border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn svg{width:16px;height:16px}
+.btn-primary{background:var(--water);border-color:var(--water);color:#fff}
+.btn-primary:hover{border-color:var(--water);filter:brightness(1.05)}
+.spin svg{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.grid{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+@media (min-width:780px){.hero{grid-template-columns:300px minmax(0,1fr)}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px}
+.card h2{font-size:15px;font-weight:600;margin:0 0 14px}
+
+.tank-card{display:flex;align-items:center;justify-content:center}
+.gauge{display:flex;align-items:center;gap:8px}
+.gauge svg{width:132px;height:auto;flex:none;overflow:visible}
+.gauge .tick{stroke:var(--muted);stroke-width:1}
+.gauge .lbl{font-size:11px;fill:var(--muted)}
+#gaugeFill{transition:transform .9s cubic-bezier(.2,.8,.2,1)}
+#gaugeFill rect{transition:fill .4s}
+@media (prefers-reduced-motion:reduce){#gaugeFill,#gaugeFill rect{transition:none}}
+.read .pct{font-size:52px;font-weight:700;letter-spacing:-.03em;line-height:1}
+.read .lit{font-size:17px;font-weight:600;margin-top:10px}
+.read .cap{font-size:13px;color:var(--muted);margin-top:2px;white-space:pre-line}
+
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.stat{border:1px solid var(--line);border-radius:12px;padding:14px;min-width:0}
+.stat .k{font-size:13px;color:var(--muted)}
+.stat .v{font-size:24px;font-weight:700;margin-top:4px;letter-spacing:-.01em}
+.stat .s{font-size:12px;color:var(--muted);margin-top:2px}
+.status{display:inline-flex;align-items:center;gap:8px;font-size:16px;font-weight:600;margin-top:6px}
+.dot{width:10px;height:10px;border-radius:50%;background:currentColor;box-shadow:0 0 0 4px color-mix(in srgb,currentColor 18%,transparent);flex:none}
+.st-ok{color:var(--ok)}.st-warn{color:var(--warn)}.st-bad{color:var(--bad)}.st-idle{color:var(--idle)}
+.thresholds{margin-top:14px;font-size:13px;color:var(--muted);display:flex;gap:16px;flex-wrap:wrap}
+.thresholds b{color:var(--text);font-weight:600}
+
+.chart-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.chart-head h2{margin:0}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
+.seg button{font:inherit;font-size:13px;font-weight:500;border:0;background:transparent;color:var(--muted);padding:6px 12px;border-radius:7px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--water);color:#fff}
+.chart-box{position:relative;height:300px}
+
+.events{list-style:none;margin:0;padding:0}
+.events li{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line);font-size:14px}
+.events li:first-child{border-top:0}
+.ev-ico{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex:none;font-size:15px}
+.ev-txt{flex:1;min-width:0}
+.ev-time{color:var(--muted);font-size:13px;white-space:nowrap}
+.empty{color:var(--muted);font-size:14px}
+
+.msg{display:none;margin-bottom:16px;padding:12px 14px;border-radius:12px;font-size:14px;
+  background:color-mix(in srgb,var(--bad) 10%,transparent);color:var(--bad);border:1px solid color-mix(in srgb,var(--bad) 30%,transparent)}
+
+/* Calibración */
+.cal{margin-bottom:16px;border-color:color-mix(in srgb,var(--water) 45%,var(--line))}
+.cal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px}
+.cal-head h2{margin:0;font-size:17px}
+.steps{margin:0 0 18px;padding-left:20px;color:var(--muted);font-size:14px}
+.steps li{margin:4px 0}
+.steps b{color:var(--text);font-weight:600}
+.cal-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:20px}
+@media (min-width:780px){.cal-grid{grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr)}}
+.live{border:1px solid var(--line);border-radius:12px;padding:16px;background:var(--bg);align-self:start}
+.live .k{font-size:13px;color:var(--muted);margin-top:14px}
+.live .big{font-size:40px;font-weight:700;letter-spacing:-.02em;margin-top:2px}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.field>label{font-size:13px;font-weight:600}
+.row{display:flex;gap:8px;align-items:stretch}
+.input{font:inherit;font-size:15px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);width:100%;min-width:0}
+.input:focus{outline:2px solid color-mix(in srgb,var(--water) 40%,transparent);outline-offset:0;border-color:var(--water)}
+.input[aria-invalid="true"]{border-color:var(--bad)}
+.err{font-size:13px;color:var(--bad)}
+.err:empty{display:none}
+.hint{font-size:13px;color:var(--muted)}
+.check{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);cursor:pointer}
+.preview{font-size:14px;padding:10px 12px;border-radius:10px;background:var(--bg);border:1px dashed var(--line);margin-bottom:14px}
+.preview b{font-weight:600}
+.note{font-size:14px;margin-top:10px}
+.note:empty{display:none}
+.note-ok{color:var(--ok)}.note-bad{color:var(--bad)}
+footer{margin-top:28px;text-align:center;color:var(--muted);font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <h1 id="title">Nivel del tanque</h1>
+      <p id="subtitle">Monitoreo IoT con energía solar</p>
+    </div>
+    <div class="actions">
+      <span class="badge" id="demoBadge" hidden>Modo demo</span>
+      <button class="btn" id="calBtn" type="button" aria-expanded="false" aria-controls="cal">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M1 14h6"/><path d="M9 8h6"/><path d="M17 16h6"/></svg>
+        Calibrar
+      </button>
+      <button class="btn" id="refreshBtn" type="button" aria-label="Actualizar datos">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+        Actualizar
+      </button>
+    </div>
+  </header>
+
+  <div class="msg" id="errorMsg" role="alert"></div>
+
+  <section class="card cal" id="cal" aria-labelledby="calTitle" hidden>
+    <div class="cal-head">
+      <h2 id="calTitle">Calibrar tanque</h2>
+      <button class="btn" id="calClose" type="button">Cerrar</button>
+    </div>
+    <ol class="steps">
+      <li>Presiona el botón <b>Calibrar</b> del dispositivo. Su LED se enciende y envía la distancia cada ~<span id="calEvery">20</span> s.</li>
+      <li>Con el tanque <b>vacío</b>, espera una lectura nueva y pulsa <b>Usar lectura actual</b>.</li>
+      <li>Con el tanque <b>lleno</b>, haz lo mismo. Si ya conoces una distancia, puedes escribirla a mano.</li>
+      <li>Escribe el <b>diámetro promedio</b> y pulsa <b>Guardar calibración</b>.</li>
+    </ol>
+    <div class="cal-grid">
+      <div class="live" aria-live="polite">
+        <div class="status st-idle" id="liveState"><span class="dot"></span><span id="liveStateTxt">Esperando al dispositivo…</span></div>
+        <div class="k">Distancia medida por el sensor</div>
+        <div class="big" id="liveDist">--</div>
+        <div class="hint" id="liveAge">Aún no hay lecturas.</div>
+      </div>
+      <div>
+        <div class="field">
+          <label for="calDia">Diámetro promedio del tanque (cm)</label>
+          <input class="input" id="calDia" type="number" inputmode="decimal" min="1" step="0.1" placeholder="Ej. 110">
+          <div class="err" id="calDiaErr"></div>
+        </div>
+        <div class="field">
+          <label for="calVacio">#1 Tanque vacío: distancia sensor–fondo (cm)</label>
+          <div class="row">
+            <input class="input" id="calVacio" type="number" inputmode="decimal" min="1" step="0.1" placeholder="Ej. 125">
+            <button class="btn" id="useVacio" type="button" disabled>Usar lectura actual</button>
+          </div>
+          <div class="err" id="calVacioErr"></div>
+        </div>
+        <div class="field">
+          <label for="calLleno">#2 Tanque lleno: distancia sensor–agua (cm)</label>
+          <div class="row">
+            <input class="input" id="calLleno" type="number" inputmode="decimal" min="1" step="0.1" placeholder="Ej. 25">
+            <button class="btn" id="useLleno" type="button" disabled>Usar lectura actual</button>
+          </div>
+          <div class="err" id="calLlenoErr"></div>
+        </div>
+        <div class="preview" id="calPreview">Completa los tres valores para ver la capacidad estimada.</div>
+        <div class="field" id="calKeyField">
+          <label for="calKey">Write API Key del canal de calibración</label>
+          <input class="input" id="calKey" type="password" autocomplete="off" spellcheck="false" placeholder="Solo quien calibra la necesita">
+          <label class="check"><input type="checkbox" id="calRemember"> Recordar en este navegador</label>
+          <div class="err" id="calKeyErr"></div>
+        </div>
+        <button class="btn btn-primary" id="calSave" type="button">Guardar calibración</button>
+        <div class="note" id="calMsg" role="status"></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="grid hero">
+    <section class="card tank-card" aria-label="Nivel actual">
+      <div class="gauge">
+        <svg viewBox="0 0 132 280" role="img" aria-labelledby="tankLabel">
+          <title id="tankLabel">Nivel actual del tanque</title>
+          <defs>
+            <clipPath id="barClip"><rect x="46" y="20" width="40" height="240" rx="20"/></clipPath>
+          </defs>
+          <g id="scale"></g>
+          <rect x="46" y="20" width="40" height="240" rx="20" fill="var(--bg)"/>
+          <g clip-path="url(#barClip)">
+            <g id="gaugeFill" style="transform:translateY(240px)">
+              <rect id="fillRect" x="46" y="20" width="40" height="240" fill="var(--water)"/>
+              <rect id="fillTop" x="46" y="20" width="40" height="3" fill="var(--water-2)"/>
+            </g>
+          </g>
+          <rect x="46" y="20" width="40" height="240" rx="20" fill="none" stroke="var(--tank)" stroke-width="2"/>
+          <g id="thrLines"></g>
+        </svg>
+        <div class="read">
+          <div class="pct" id="tankPct">--%</div>
+          <div class="lit" id="tankCap"></div>
+          <div class="cap" id="tankName"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" aria-label="Resumen">
+      <h2>Resumen</h2>
+      <div class="stats">
+        <div class="stat">
+          <div class="k">Nivel</div>
+          <div class="v" id="levelCm">--</div>
+          <div class="s" id="levelHint">altura de agua</div>
+        </div>
+        <div class="stat">
+          <div class="k">Volumen estimado</div>
+          <div class="v" id="liters">--</div>
+          <div class="s" id="capHint"></div>
+        </div>
+        <div class="stat">
+          <div class="k">Última lectura</div>
+          <div class="v" id="lastAgo">--</div>
+          <div class="s" id="lastDate"></div>
+        </div>
+        <div class="stat">
+          <div class="k">Último llenado</div>
+          <div class="v" id="lastFill">--</div>
+          <div class="s" id="lastFillDate"></div>
+        </div>
+      </div>
+      <div class="thresholds">
+        <span>Alerta baja: <b id="thrLow">--</b></span>
+        <span>Alerta alta: <b id="thrHigh">--</b></span>
+        <span>Medición cada <b id="interval">--</b></span>
+      </div>
+    </section>
+  </div>
+
+  <section class="card" style="margin-top:16px" aria-label="Histórico">
+    <div class="chart-head">
+      <h2>Histórico del nivel</h2>
+      <div class="seg" role="group" aria-label="Rango de tiempo">
+        <button type="button" data-days="1" aria-pressed="true">24 h</button>
+        <button type="button" data-days="7" aria-pressed="false">7 días</button>
+        <button type="button" data-days="30" aria-pressed="false">30 días</button>
+      </div>
+    </div>
+    <div class="chart-box"><canvas id="chart" aria-label="Gráfica del nivel en el tiempo"></canvas></div>
+  </section>
+
+  <section class="card" style="margin-top:16px" aria-label="Eventos">
+    <h2>Eventos recientes</h2>
+    <ul class="events" id="events"><li class="empty">Sin eventos en este rango.</li></ul>
+  </section>
+
+  <footer>Proyecto final · Conversión de Energía · Universidad El Bosque</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // ---------- Configuración por defecto (se sobrescribe con config.json) ----------
+  var DEFAULTS = {
+    nombre_tanque: 'Tanque principal',
+    ubicacion: 'Finca',
+    thingspeak: {
+      canal_datos: { id: '', read_key: '' },
+      canal_calibracion: { id: '', read_key: '' }
+    },
+    umbrales: { bajo_pct: 20, alto_pct: 95 },
+    esp32: { intervalo_min: 10, envio_calibracion_s: 20, calibracion_timeout_min: 5 }
+  };
+  var REFRESH_MS = 60 * 1000;       // refresco de la vista principal
+  var LIVE_MS = 5000;               // refresco de la lectura en vivo durante la calibración
+  var FILL_JUMP_PCT = 15;           // subida mínima entre lecturas para contarla como llenado
+  var HYST = 3;                     // puntos de % de histéresis para las alertas
+  var MIN_SPAN_CM = 5;             // diferencia mínima entre "vacío" y "lleno"
+  var DEAD_ZONE_CM = 20;            // zona muerta aproximada del JSN-SR04T
+  var MODE_CAL = 1;                 // field2 = 1 → el dispositivo está en modo calibración
+  var ERR_SENSOR = 1;               // field3 = 1 → falla del sensor
+  var KEY_STORE = 'tanque.cal_write_key';
+  var DEMO_CAL = { vacio: 125, lleno: 25, diametro: 110 };
+
+  var cfg = DEFAULTS;
+  var cal = null;                   // { vacio, lleno, diametro } en cm
+  var days = 1;
+  var demo = false;
+  var chart = null;
+  var liveTimer = null;
+  var lastLive = null;
+  var demoLiveD = null;
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  function merge(base, extra) {
+    var out = JSON.parse(JSON.stringify(base));
+    Object.keys(extra || {}).forEach(function (k) {
+      if (extra[k] && typeof extra[k] === 'object' && !Array.isArray(extra[k])) out[k] = merge(out[k] || {}, extra[k]);
+      else out[k] = extra[k];
+    });
+    return out;
+  }
+  function num(v) {
+    if (v === null || v === undefined || v === '') return null;
+    var n = parseFloat(v);
+    return isFinite(n) ? n : null;
+  }
+  function store(k, v) {
+    try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {}
+  }
+  function recall(k) {
+    try { return localStorage.getItem(k); } catch (e) { return null; }
+  }
+
+  // ---------- Cálculo del nivel a partir de la distancia ----------
+  // h = d_vacío − d ;  % = h / (d_vacío − d_lleno) ;  V = π (D/2)² h
+  function areaCm2(c) { return Math.PI * Math.pow(c.diametro / 2, 2); }
+  function capacity(c) { return c ? areaCm2(c) * (c.vacio - c.lleno) / 1000 : null; }
+  function level(d) {
+    if (!cal || d == null) return null;
+    var span = cal.vacio - cal.lleno;
+    var h = Math.max(0, Math.min(span, cal.vacio - d));
+    return { h: h, pct: h / span * 100, litros: areaCm2(cal) * h / 1000 };
+  }
+
+  // ---------- ThingSpeak ----------
+  function tsGet(path, key) {
+    var url = 'https://api.thingspeak.com/' + path;
+    if (key) url += (path.indexOf('?') < 0 ? '?' : '&') + 'api_key=' + encodeURIComponent(key);
+    return fetch(url, { cache: 'no-store' }).then(function (r) {
+      if (!r.ok) throw new Error('ThingSpeak respondió ' + r.status);
+      return r.json();
+    });
+  }
+
+  function loadConfig() {
+    return fetch('config.json', { cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
+      .then(function (j) { cfg = merge(DEFAULTS, j); })
+      .catch(function () { cfg = DEFAULTS; });
+  }
+
+  function parseCal(j) {
+    if (!j || j === -1) return null;
+    var c = { vacio: num(j.field1), lleno: num(j.field2), diametro: num(j.field3) };
+    if (c.vacio == null || c.lleno == null || c.diametro == null) return null;
+    if (c.vacio - c.lleno < MIN_SPAN_CM || c.diametro <= 0) return null;
+    return c;
+  }
+
+  function loadCalibration() {
+    if (demo) { if (!cal) cal = JSON.parse(JSON.stringify(DEMO_CAL)); return Promise.resolve(); }
+    var c = cfg.thingspeak.canal_calibracion;
+    if (!c.id) { cal = null; return Promise.resolve(); }
+    return tsGet('channels/' + encodeURIComponent(c.id) + '/feeds/last.json', c.read_key)
+      .then(function (j) { cal = parseCal(j); });
+  }
+
+  function loadData(nDays) {
+    if (demo) return Promise.resolve(demoData(nDays));
+    var c = cfg.thingspeak.canal_datos;
+    return tsGet('channels/' + encodeURIComponent(c.id) + '/feeds.json?days=' + nDays + '&results=8000', c.read_key)
+      .then(function (j) {
+        if (j === -1 || !j.feeds) throw new Error('Canal de datos no encontrado o privado sin clave de lectura');
+        return j.feeds.map(rowFrom);
+      });
+  }
+
+  function rowFrom(f) {
+    return { t: Date.parse(f.created_at), d: num(f.field1), modo: num(f.field2) || 0, err: num(f.field3) || 0 };
+  }
+
+  // Datos simulados: consumo diario + llenados 1-2 veces por semana + una falla de sensor + una calibración
+  function demoData(nDays) {
+    var step = (cfg.esp32.intervalo_min || 10) * 60 * 1000;
+    var now = Date.now();
+    var start = now - 30 * 864e5;
+    var seed = 7;
+    var rnd = function () { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+    var c = DEMO_CAL, span = c.vacio - c.lleno;
+    var pct = 80, out = [];
+    var errAt = now - 2.2 * 864e5, calAt = now - 5.4 * 864e5;
+    for (var t = start; t <= now; t += step) {
+      var h = new Date(t).getHours();
+      pct -= (h >= 6 && h <= 21) ? 0.09 + rnd() * 0.08 : 0.01;
+      if (rnd() < 0.0012 || pct < 8) pct = 92 + rnd() * 6; // llega el agua
+      pct = Math.max(0, Math.min(100, pct));
+      var err = (t > errAt && t < errAt + step * 2) ? ERR_SENSOR : 0;
+      var modo = (t > calAt && t < calAt + step * 2) ? MODE_CAL : 0;
+      var d = c.vacio - pct / 100 * span + (rnd() - 0.5) * 0.6;
+      out.push({ t: t, d: err ? null : +d.toFixed(1), modo: modo, err: err });
+    }
+    var from = now - nDays * 864e5;
+    return out.filter(function (r) { return r.t >= from; });
+  }
+
+  // ---------- Formato ----------
+  function ago(ms) {
+    var s = Math.max(0, (Date.now() - ms) / 1000);
+    if (s < 60) return 'hace ' + Math.round(s) + ' s';
+    var m = Math.round(s / 60); if (m < 60) return 'hace ' + m + ' min';
+    var h = Math.round(m / 60); if (h < 24) return 'hace ' + h + ' h';
+    var d = Math.round(h / 24); return 'hace ' + d + (d === 1 ? ' día' : ' días');
+  }
+  function fmtDate(ms) {
+    return new Date(ms).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+  function fmtTick(ms) {
+    var d = new Date(ms);
+    return days <= 1
+      ? d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
+      : d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' });
+  }
+  function fmtL(v) { return Math.round(v).toLocaleString('es-CO') + ' L'; }
+  function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  // ---------- Render principal ----------
+  // Indicador de barra: y = BAR_TOP + BAR_H * (1 − p/100)
+  var BAR_TOP = 20, BAR_H = 240, SVGNS = 'http://www.w3.org/2000/svg';
+  function svgEl(tag, attrs, text) {
+    var el = document.createElementNS(SVGNS, tag);
+    Object.keys(attrs).forEach(function (k) { el.setAttribute(k, attrs[k]); });
+    if (text != null) el.textContent = text;
+    return el;
+  }
+  function barY(p) { return BAR_TOP + BAR_H * (1 - p / 100); }
+
+  function drawScale() {
+    var g = $('scale');
+    if (g.childNodes.length) return;
+    for (var p = 0; p <= 100; p += 12.5) {
+      var major = p % 25 === 0, y = barY(p);
+      g.appendChild(svgEl('line', { 'class': 'tick', x1: major ? 30 : 34, x2: 40, y1: y, y2: y }));
+      if (major) g.appendChild(svgEl('text', { 'class': 'lbl', x: 26, y: y + 4, 'text-anchor': 'end' }, p));
+    }
+  }
+
+  function drawTank(pct) {
+    var u = cfg.umbrales;
+    var p = pct == null ? 0 : Math.max(0, Math.min(100, pct));
+    drawScale();
+    $('gaugeFill').style.transform = 'translateY(' + (BAR_H * (1 - p / 100)) + 'px)';
+    $('fillTop').style.opacity = p > 0 && p < 100 ? 1 : 0;
+    var col = pct == null ? '--water' : p < u.bajo_pct ? '--warn' : p > u.alto_pct ? '--bad' : '--water';
+    $('fillRect').setAttribute('fill', 'var(' + col + ')');
+    $('tankPct').textContent = pct == null ? '--%' : Math.round(p) + '%';
+
+    var g = $('thrLines');
+    g.innerHTML = '';
+    [[u.bajo_pct, css('--warn')], [u.alto_pct, css('--bad')]].forEach(function (a) {
+      var y = barY(a[0]);
+      g.appendChild(svgEl('line', { x1: 42, x2: 92, y1: y, y2: y, stroke: a[1], 'stroke-width': 1.5, 'stroke-dasharray': '4 3' }));
+      g.appendChild(svgEl('text', { x: 96, y: y + 4, 'font-size': 11, fill: a[1] }, a[0] + '%'));
+    });
+  }
+
+  function derive(raw) {
+    return raw.map(function (r) {
+      var ok = r.err !== ERR_SENSOR && r.modo !== MODE_CAL && r.d != null;
+      var lv = ok ? level(r.d) : null;
+      return { t: r.t, d: r.d, modo: r.modo, err: r.err,
+        pct: lv ? lv.pct : null, h: lv ? lv.h : null, litros: lv ? lv.litros : null };
+    });
+  }
+
+  function findEvents(data) {
+    // Histéresis: una alerta se rearma solo cuando el nivel se aleja HYST puntos del umbral
+    var u = cfg.umbrales, ev = [], pv = null, prevErr = false, prevCal = false;
+    var lowArmed = true, highArmed = true;
+    data.forEach(function (d) {
+      if (d.modo === MODE_CAL) { if (!prevCal) ev.push({ t: d.t, kind: 'cal' }); prevCal = true; return; }
+      prevCal = false;
+      if (d.err === ERR_SENSOR) { if (!prevErr) ev.push({ t: d.t, kind: 'err' }); prevErr = true; return; }
+      prevErr = false;
+      if (d.pct == null) return;
+      if (pv) {
+        if (d.pct - pv.pct >= FILL_JUMP_PCT) ev.push({ t: d.t, kind: 'fill', pct: d.pct });
+        else if (lowArmed && d.pct < u.bajo_pct) { ev.push({ t: d.t, kind: 'low', pct: d.pct }); lowArmed = false; }
+        else if (highArmed && d.pct > u.alto_pct) { ev.push({ t: d.t, kind: 'high', pct: d.pct }); highArmed = false; }
+      } else {
+        lowArmed = d.pct >= u.bajo_pct;
+        highArmed = d.pct <= u.alto_pct;
+      }
+      if (d.pct >= u.bajo_pct + HYST) lowArmed = true;
+      if (d.pct <= u.alto_pct - HYST) highArmed = true;
+      pv = d;
+    });
+    return ev;
+  }
+
+  function renderEvents(ev) {
+    var ul = $('events');
+    ul.innerHTML = '';
+    if (!ev.length) { ul.innerHTML = '<li class="empty">Sin eventos en este rango.</li>'; return; }
+    var map = {
+      fill: ['Llenado detectado', '💧', '--water'],
+      low: ['Nivel bajo', '⚠️', '--warn'],
+      high: ['Nivel alto', '⬆️', '--bad'],
+      err: ['Falla del sensor', '✖', '--idle'],
+      cal: ['Modo calibración', '🔧', '--idle']
+    };
+    ev.slice(-8).reverse().forEach(function (e) {
+      var m = map[e.kind], col = css(m[2]);
+      var li = document.createElement('li');
+      li.innerHTML =
+        '<span class="ev-ico" style="background:color-mix(in srgb,' + col + ' 15%,transparent);color:' + col + '">' + m[1] + '</span>' +
+        '<span class="ev-txt">' + m[0] + (e.pct != null ? ' · ' + Math.round(e.pct) + '%' : '') + '</span>' +
+        '<span class="ev-time">' + fmtDate(e.t) + '</span>';
+      ul.appendChild(li);
+    });
+  }
+
+  function renderChart(data) {
+    var u = cfg.umbrales;
+    var pts = data.map(function (d) { return { x: d.t, y: d.pct }; });
+    var minX = data.length ? data[0].t : Date.now() - days * 864e5;
+    var maxX = data.length ? data[data.length - 1].t : Date.now();
+    var water = css('--water'), muted = css('--muted'), line = css('--line');
+    var thr = function (v, c, label) {
+      return { label: label, data: [{ x: minX, y: v }, { x: maxX, y: v }], borderColor: c, borderDash: [6, 5],
+        borderWidth: 1.5, pointRadius: 0, fill: false, tension: 0 };
+    };
+    var ds = [
+      { label: 'Nivel (%)', data: pts, borderColor: water, backgroundColor: water + '22',
+        borderWidth: 2, pointRadius: 0, pointHitRadius: 8, fill: 'origin', tension: 0.25, spanGaps: false },
+      thr(u.bajo_pct, css('--warn'), 'Alerta baja'),
+      thr(u.alto_pct, css('--bad'), 'Alerta alta')
+    ];
+    if (typeof Chart === 'undefined') return;
+    if (chart) { chart.data.datasets = ds; chart.options.scales.x.min = minX; chart.options.scales.x.max = maxX; chart.update(); return; }
+    chart = new Chart($('chart'), {
+      type: 'line',
+      data: { datasets: ds },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: { duration: 400 },
+        interaction: { mode: 'nearest', axis: 'x', intersect: false },
+        plugins: {
+          legend: { labels: { color: muted, boxWidth: 12, usePointStyle: true, font: { family: 'Inter', size: 12 } } },
+          tooltip: {
+            filter: function (i) { return i.datasetIndex === 0; },
+            callbacks: {
+              title: function (i) { return i.length ? fmtDate(i[0].parsed.x) : ''; },
+              label: function (i) { return ' Nivel: ' + (i.parsed.y == null ? '—' : i.parsed.y.toFixed(1) + '%'); }
+            }
+          }
+        },
+        scales: {
+          x: { type: 'linear', min: minX, max: maxX, grid: { color: line },
+            ticks: { color: muted, maxTicksLimit: 7, callback: function (v) { return fmtTick(v); } } },
+          y: { min: 0, max: 100, grid: { color: line },
+            ticks: { color: muted, stepSize: 25, callback: function (v) { return v + '%'; } } }
+        }
+      }
+    });
+  }
+
+  function render(raw) {
+    var u = cfg.umbrales;
+    var interval = cfg.esp32.intervalo_min || 10;
+    var cap = capacity(cal);
+    var data = derive(raw);
+
+    $('title').textContent = cfg.nombre_tanque;
+    $('subtitle').textContent = cfg.ubicacion + ' · monitoreo IoT con energía solar';
+    $('tankName').textContent = cal ? 'de ' + fmtL(cap) + '\nØ ' + cal.diametro + ' cm' : 'Sin calibrar';
+    $('thrLow').textContent = u.bajo_pct + '%';
+    $('thrHigh').textContent = u.alto_pct + '%';
+    $('interval').textContent = interval + ' min';
+    $('demoBadge').hidden = !demo;
+
+    var last = data.length ? data[data.length - 1] : null;
+    var lastValid = null;
+    for (var i = data.length - 1; i >= 0; i--) { if (data[i].pct != null) { lastValid = data[i]; break; } }
+
+    drawTank(lastValid ? lastValid.pct : null);
+    $('levelCm').textContent = lastValid ? lastValid.h.toFixed(1) + ' cm' : '--';
+    $('levelHint').textContent = lastValid ? 'altura de agua · sensor a ' + lastValid.d.toFixed(1) + ' cm' : 'altura de agua';
+    $('liters').textContent = lastValid ? fmtL(lastValid.litros) : '--';
+    $('capHint').textContent = cap ? 'de ' + fmtL(cap) : 'requiere calibración';
+    $('tankCap').textContent = lastValid ? fmtL(lastValid.litros) : '';
+    $('lastAgo').textContent = last ? ago(last.t) : '--';
+    $('lastDate').textContent = last ? fmtDate(last.t) : 'sin datos';
+
+    var ev = findEvents(data);
+    var fills = ev.filter(function (e) { return e.kind === 'fill'; });
+    var lf = fills.length ? fills[fills.length - 1] : null;
+    $('lastFill').textContent = lf ? ago(lf.t) : '--';
+    $('lastFillDate').textContent = lf ? fmtDate(lf.t) : 'no hubo en este rango';
+
+    renderEvents(ev);
+    renderChart(data);
+  }
+
+  function showError(text) {
+    var m = $('errorMsg');
+    m.style.display = text ? 'block' : 'none';
+    m.textContent = text || '';
+  }
+
+  function refresh() {
+    var btn = $('refreshBtn');
+    btn.classList.add('spin');
+    return Promise.all([loadCalibration(), loadData(days)])
+      .then(function (r) { showError(''); render(r[1]); })
+      .catch(function (e) { showError('No se pudieron cargar los datos: ' + e.message); })
+      .then(function () { btn.classList.remove('spin'); });
+  }
+
+  // ---------- Calibración ----------
+  var FIELDS = ['calDia', 'calVacio', 'calLleno', 'calKey'];
+
+  function setErr(id, text) {
+    $(id + 'Err').textContent = text || '';
+    if (text) $(id).setAttribute('aria-invalid', 'true'); else $(id).removeAttribute('aria-invalid');
+  }
+  function clearErrs() { FIELDS.forEach(function (id) { setErr(id, ''); }); }
+  function note(text, kind) {
+    var n = $('calMsg');
+    n.textContent = text || '';
+    n.className = 'note' + (kind === 'ok' ? ' note-ok' : kind === 'bad' ? ' note-bad' : '');
+  }
+  function readForm() {
+    return { dia: num($('calDia').value), v: num($('calVacio').value), l: num($('calLleno').value) };
+  }
+
+  function updatePreview() {
+    var f = readForm(), p = $('calPreview');
+    if (f.dia > 0 && f.v != null && f.l != null && f.v - f.l >= MIN_SPAN_CM) {
+      var hu = f.v - f.l;
+      var cap = Math.PI * Math.pow(f.dia / 2, 2) * hu / 1000;
+      var txt = 'Altura útil <b>' + hu.toFixed(1) + ' cm</b> · capacidad estimada <b>' + fmtL(cap) + '</b>';
+      if (lastLive && lastLive.d != null && lastLive.err !== ERR_SENSOR) {
+        var h = Math.max(0, Math.min(hu, f.v - lastLive.d));
+        txt += '<br>Con la lectura actual: <b>' + Math.round(h / hu * 100) + '%</b> (' + fmtL(Math.PI * Math.pow(f.dia / 2, 2) * h / 1000) + ')';
+      }
+      if (f.l < DEAD_ZONE_CM) txt += '<br><span style="color:var(--warn)">La distancia "lleno" está cerca de la zona muerta del sensor (~' + DEAD_ZONE_CM + ' cm).</span>';
+      p.innerHTML = txt;
+    } else {
+      p.textContent = 'Completa los tres valores para ver la capacidad estimada.';
+    }
+  }
+
+  function setLive(cls, txt) {
+    $('liveState').className = 'status ' + cls;
+    $('liveStateTxt').textContent = txt;
+  }
+
+  function showLive() {
+    var L = lastLive;
+    var win = (cfg.esp32.envio_calibracion_s || 20) * 3 * 1000;
+    if (!L || L.t == null) {
+      $('liveDist').textContent = '--';
+      $('liveAge').textContent = 'Aún no hay lecturas.';
+      setLive('st-idle', 'Esperando al dispositivo…');
+      $('useVacio').disabled = $('useLleno').disabled = true;
+      return;
+    }
+    var active = L.modo === MODE_CAL && (Date.now() - L.t) < win;
+    var valid = L.err !== ERR_SENSOR && L.d != null;
+    $('liveDist').textContent = valid ? L.d.toFixed(1) + ' cm' : 'Error';
+    $('liveAge').textContent = 'Lectura ' + ago(L.t) + ' · ' + fmtDate(L.t);
+    if (active && !valid) setLive('st-bad', 'El sensor no responde');
+    else if (active) setLive('st-ok', 'Dispositivo en modo calibración');
+    else setLive('st-idle', 'Esperando al dispositivo… presiona su botón');
+    $('useVacio').disabled = $('useLleno').disabled = !(active && valid);
+    updatePreview();
+  }
+
+  function pollLive() {
+    if (demo) {
+      if (demoLiveD == null) demoLiveD = 78;
+      demoLiveD = +(demoLiveD + (Math.random() - 0.5) * 0.8).toFixed(1);
+      lastLive = { t: Date.now() - Math.round(Math.random() * 15000), d: demoLiveD, modo: MODE_CAL, err: 0 };
+      showLive();
+      return;
+    }
+    var c = cfg.thingspeak.canal_datos;
+    tsGet('channels/' + encodeURIComponent(c.id) + '/feeds/last.json', c.read_key)
+      .then(function (j) { if (j && j !== -1) lastLive = rowFrom(j); showLive(); })
+      .catch(function () { setLive('st-bad', 'No se pudo leer el canal de datos'); });
+  }
+
+  function openCal() {
+    $('cal').hidden = false;
+    $('calBtn').setAttribute('aria-expanded', 'true');
+    $('calEvery').textContent = cfg.esp32.envio_calibracion_s || 20;
+    $('calDia').value = cal ? cal.diametro : '';
+    $('calVacio').value = cal ? cal.vacio : '';
+    $('calLleno').value = cal ? cal.lleno : '';
+    var k = recall(KEY_STORE);
+    $('calKey').value = k || '';
+    $('calRemember').checked = !!k;
+    $('calKeyField').hidden = demo;
+    clearErrs();
+    note('');
+    updatePreview();
+    pollLive();
+    clearInterval(liveTimer);
+    liveTimer = setInterval(pollLive, LIVE_MS);
+    $('cal').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function closeCal() {
+    $('cal').hidden = true;
+    $('calBtn').setAttribute('aria-expanded', 'false');
+    clearInterval(liveTimer);
+    liveTimer = null;
+  }
+
+  function validate(f, key) {
+    var ok = true;
+    if (!(f.dia > 0)) { setErr('calDia', 'Ingresa el diámetro en cm (mayor que 0).'); ok = false; }
+    if (!(f.v > 0)) { setErr('calVacio', 'Falta la distancia con el tanque vacío.'); ok = false; }
+    if (!(f.l > 0)) { setErr('calLleno', 'Falta la distancia con el tanque lleno.'); ok = false; }
+    if (f.v > 0 && f.l > 0 && f.v - f.l < MIN_SPAN_CM) {
+      setErr('calLleno', 'La distancia "lleno" debe ser al menos ' + MIN_SPAN_CM + ' cm menor que la de "vacío".');
+      ok = false;
+    }
+    if (!demo && !key) { setErr('calKey', 'Ingresa la Write API Key del canal de calibración.'); ok = false; }
+    return ok;
+  }
+
+  function saveCal() {
+    clearErrs();
+    note('');
+    var f = readForm();
+    var key = $('calKey').value.trim();
+    if (!validate(f, key)) return;
+    if (!demo && !cfg.thingspeak.canal_calibracion.id) {
+      note('Falta "canal_calibracion.id" en config.json.', 'bad');
+      return;
+    }
+    var btn = $('calSave');
+    btn.disabled = true;
+    note('Guardando…');
+
+    var p;
+    if (demo) {
+      p = Promise.resolve();
+    } else {
+      var body = new URLSearchParams({ api_key: key, field1: String(f.v), field2: String(f.l), field3: String(f.dia) });
+      p = fetch('https://api.thingspeak.com/update.json', { method: 'POST', body: body })
+        .catch(function () { throw new Error('No se pudo conectar con ThingSpeak.'); })
+        .then(function (r) { return r.text(); })
+        .then(function (t) {
+          if (!t || t.trim() === '0' || t.trim() === '-1') {
+            throw new Error('ThingSpeak rechazó la escritura. Revisa la clave o espera 15 s entre guardados.');
+          }
+        });
+    }
+    p.then(function () {
+      if (!demo) store(KEY_STORE, $('calRemember').checked ? key : null);
+      cal = { vacio: f.v, lleno: f.l, diametro: f.dia };
+      note(demo
+        ? 'Calibración aplicada (modo demo: no se guardó en ThingSpeak).'
+        : 'Calibración guardada. El dispositivo la tomará en su próximo ciclo.', 'ok');
+      refresh();
+    }).catch(function (e) {
+      note(e.message || 'No se pudo guardar.', 'bad');
+    }).then(function () {
+      btn.disabled = false;
+    });
+  }
+
+  // ---------- Inicio ----------
+  document.querySelectorAll('.seg button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      days = parseInt(b.dataset.days, 10);
+      document.querySelectorAll('.seg button').forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+      refresh();
+    });
+  });
+  $('refreshBtn').addEventListener('click', refresh);
+  $('calBtn').addEventListener('click', function () { if ($('cal').hidden) openCal(); else closeCal(); });
+  $('calClose').addEventListener('click', closeCal);
+  $('calSave').addEventListener('click', saveCal);
+  $('useVacio').addEventListener('click', function () {
+    if (lastLive && lastLive.d != null) { $('calVacio').value = lastLive.d; setErr('calVacio', ''); updatePreview(); }
+  });
+  $('useLleno').addEventListener('click', function () {
+    if (lastLive && lastLive.d != null) { $('calLleno').value = lastLive.d; setErr('calLleno', ''); updatePreview(); }
+  });
+  FIELDS.forEach(function (id) {
+    $(id).addEventListener('input', function () { setErr(id, ''); updatePreview(); });
+  });
+
+  loadConfig().then(function () {
+    var q = new URLSearchParams(location.search);
+    demo = q.get('demo') === '1' || !cfg.thingspeak.canal_datos.id;
+    refresh();
+    setInterval(refresh, REFRESH_MS);
+  });
+})();
+</script>
+</body>
+</html>
