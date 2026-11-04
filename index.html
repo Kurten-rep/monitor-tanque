@@ -56,6 +56,8 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;fl
 .read .pct{font-size:52px;font-weight:700;letter-spacing:-.03em;line-height:1}
 .read .lit{font-size:17px;font-weight:600;margin-top:10px}
 .read .cap{font-size:13px;color:var(--muted);margin-top:2px;white-space:pre-line}
+.range-warn{font-size:12px;color:var(--warn);margin-top:10px;max-width:180px;line-height:1.4}
+.dist-note{font-size:13px;color:var(--muted);margin:-8px 0 16px;padding:8px 12px;border-radius:10px;background:var(--bg)}
 
 .stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .stat{border:1px solid var(--line);border-radius:12px;padding:14px;min-width:0}
@@ -151,6 +153,7 @@ footer a:hover{color:var(--text)}
       <li>Con el tanque <b>lleno</b>, haz lo mismo. Si ya conoces una distancia, puedes escribirla a mano.</li>
       <li>Escribe el <b>diámetro promedio</b> y pulsa <b>Guardar calibración</b>.</li>
     </ol>
+    <p class="dist-note">Todas las medidas son <b>distancias desde el sensor</b> (en la tapa) hacia abajo: a más agua, menor distancia. Por eso "vacío" siempre es mayor que "lleno".</p>
     <div class="cal-grid">
       <div class="live" aria-live="polite">
         <div class="status st-idle" id="liveState"><span class="dot"></span><span id="liveStateTxt">Esperando al dispositivo…</span></div>
@@ -216,6 +219,7 @@ footer a:hover{color:var(--text)}
           <div class="pct" id="tankPct">--%</div>
           <div class="lit" id="tankCap"></div>
           <div class="cap" id="tankName"></div>
+          <div class="range-warn" id="rangeWarn" role="status" hidden></div>
         </div>
       </div>
     </section>
@@ -296,7 +300,8 @@ footer a:hover{color:var(--text)}
   var LIVE_MS = 5000;               // refresco de la lectura en vivo durante la calibración
   var FILL_JUMP_PCT = 15;           // subida mínima entre lecturas para contarla como llenado
   var HYST = 3;                     // puntos de % de histéresis para las alertas
-  var MIN_SPAN_CM = 5;             // diferencia mínima entre "vacío" y "lleno"
+  var RANGE_TOL_CM = 3;             // margen antes de marcar una lectura como fuera de rango
+  var MIN_SPAN_CM = 5;            // diferencia mínima entre "vacío" y "lleno"
   var DEAD_ZONE_CM = 20;            // zona muerta aproximada del JSN-SR04T
   var MODE_CAL = 1;                 // field2 = 1 → el dispositivo está en modo calibración
   var ERR_SENSOR = 1;               // field3 = 1 → falla del sensor
@@ -340,11 +345,23 @@ footer a:hover{color:var(--text)}
   // h = d_vacío − d ;  % = h / (d_vacío − d_lleno) ;  V = π (D/2)² h
   function areaCm2(c) { return Math.PI * Math.pow(c.diametro / 2, 2); }
   function capacity(c) { return c ? areaCm2(c) * (c.vacio - c.lleno) / 1000 : null; }
+  // out: 'bajo' si la distancia supera la de "vacío" (más allá del fondo),
+  //      'alto' si es menor que la de "lleno" (agua por encima del nivel máximo calibrado)
+  function rangeOf(d, c) {
+    if (d > c.vacio + RANGE_TOL_CM) return 'bajo';
+    if (d < c.lleno - RANGE_TOL_CM) return 'alto';
+    return null;
+  }
   function level(d) {
     if (!cal || d == null) return null;
     var span = cal.vacio - cal.lleno;
     var h = Math.max(0, Math.min(span, cal.vacio - d));
-    return { h: h, pct: h / span * 100, litros: areaCm2(cal) * h / 1000 };
+    return { h: h, pct: h / span * 100, litros: areaCm2(cal) * h / 1000, out: rangeOf(d, cal) };
+  }
+  function rangeText(d, c, out) {
+    return out === 'bajo'
+      ? 'Lectura fuera de rango: el sensor marca ' + d.toFixed(1) + ' cm, más lejos que el fondo (' + c.vacio + ' cm). Revise la calibración "vacío".'
+      : 'Lectura fuera de rango: el sensor marca ' + d.toFixed(1) + ' cm, más cerca que "lleno" (' + c.lleno + ' cm). Posible desborde o calibración "lleno" incorrecta.';
   }
 
   // ---------- ThingSpeak ----------
@@ -497,7 +514,7 @@ footer a:hover{color:var(--text)}
       var ok = known && r.err !== ERR_SENSOR && r.modo !== MODE_CAL && r.d != null;
       var lv = ok ? level(r.d) : null;
       return { t: r.t, d: r.d, modo: r.modo, err: r.err,
-        pct: lv ? lv.pct : null, h: lv ? lv.h : null, litros: lv ? lv.litros : null };
+        pct: lv ? lv.pct : null, h: lv ? lv.h : null, litros: lv ? lv.litros : null, out: lv ? lv.out : null };
     });
   }
 
@@ -616,6 +633,9 @@ footer a:hover{color:var(--text)}
     drawTank(lastValid ? lastValid.pct : null);
     $('levelCm').textContent = lastValid ? lastValid.h.toFixed(1) + ' cm' : '--';
     $('levelHint').textContent = lastValid ? 'altura de agua · sensor a ' + lastValid.d.toFixed(1) + ' cm' : 'altura de agua';
+    var outNow = lastValid && lastValid.out;
+    $('rangeWarn').hidden = !outNow;
+    $('rangeWarn').textContent = outNow ? rangeText(lastValid.d, cal, outNow) : '';
     $('liters').textContent = lastValid ? fmtL(lastValid.litros) : '--';
     $('capHint').textContent = cap ? 'de ' + fmtL(cap) : 'requiere calibración';
     $('tankCap').textContent = lastValid ? fmtL(lastValid.litros) : '';
@@ -673,6 +693,8 @@ footer a:hover{color:var(--text)}
       if (lastLive && lastLive.d != null && lastLive.err !== ERR_SENSOR) {
         var h = Math.max(0, Math.min(hu, f.v - lastLive.d));
         txt += '<br>Con la lectura actual: <b>' + Math.round(h / hu * 100) + '%</b> (' + fmtL(Math.PI * Math.pow(f.dia / 2, 2) * h / 1000) + ')';
+        var o = rangeOf(lastLive.d, { vacio: f.v, lleno: f.l });
+        if (o) txt += '<br><span style="color:var(--warn)">' + rangeText(lastLive.d, { vacio: f.v, lleno: f.l }, o) + '</span>';
       }
       if (f.l < DEAD_ZONE_CM) txt += '<br><span style="color:var(--warn)">La distancia "lleno" está cerca de la zona muerta del sensor (~' + DEAD_ZONE_CM + ' cm).</span>';
       p.innerHTML = txt;
