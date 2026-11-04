@@ -305,6 +305,8 @@ footer a:hover{color:var(--text)}
 
   var cfg = DEFAULTS;
   var cal = null;                   // { vacio, lleno, diametro } en cm
+  var pendingCal = null;            // calibración recién guardada { c, at }
+  var PENDING_MS = 2 * 60 * 1000;
   var days = 1;
   var demo = false;
   var chart = null;
@@ -375,7 +377,19 @@ footer a:hover{color:var(--text)}
     var c = cfg.thingspeak.canal_calibracion;
     if (!c.id) { cal = null; return Promise.resolve(); }
     return tsGet('channels/' + encodeURIComponent(c.id) + '/feeds/last.json', c.read_key)
-      .then(function (j) { cal = parseCal(j); });
+      .then(function (j) {
+        var server = parseCal(j);
+        // Justo después de guardar, ThingSpeak puede tardar en devolver la fila nueva: se conserva la local
+        if (pendingCal && Date.now() - pendingCal.at < PENDING_MS && !sameCal(server, pendingCal.c)) {
+          cal = pendingCal.c;
+          return;
+        }
+        pendingCal = null;
+        cal = server;
+      });
+  }
+  function sameCal(a, b) {
+    return !!a && !!b && a.vacio === b.vacio && a.lleno === b.lleno && a.diametro === b.diametro;
   }
 
   function loadData(nDays) {
@@ -478,7 +492,9 @@ footer a:hover{color:var(--text)}
 
   function derive(raw) {
     return raw.map(function (r) {
-      var ok = r.err !== ERR_SENSOR && r.modo !== MODE_CAL && r.d != null;
+      // Solo filas con modo/error conocidos (descarta escrituras ajenas al firmware)
+      var known = (r.modo === 0 || r.modo === MODE_CAL) && (r.err === 0 || r.err === ERR_SENSOR);
+      var ok = known && r.err !== ERR_SENSOR && r.modo !== MODE_CAL && r.d != null;
       var lv = ok ? level(r.d) : null;
       return { t: r.t, d: r.d, modo: r.modo, err: r.err,
         pct: lv ? lv.pct : null, h: lv ? lv.h : null, litros: lv ? lv.litros : null };
@@ -768,14 +784,22 @@ footer a:hover{color:var(--text)}
         .catch(function () { throw new Error('No se pudo conectar con ThingSpeak.'); })
         .then(function (r) { return r.text(); })
         .then(function (t) {
-          if (!t || t.trim() === '0' || t.trim() === '-1') {
+          var j = null;
+          try { j = JSON.parse((t || '').trim()); } catch (e) {}
+          if (!j || typeof j !== 'object') {
             throw new Error('ThingSpeak rechazó la escritura. Revisa la clave o espera 15 s entre guardados.');
+          }
+          var calId = String(cfg.thingspeak.canal_calibracion.id);
+          if (j.channel_id != null && String(j.channel_id) !== calId) {
+            throw new Error('Esa Write Key pertenece al canal ' + j.channel_id + ', no al de calibración (' + calId +
+              '). Los valores quedaron en ese otro canal. Pega la Write Key del canal de calibración y guarda de nuevo.');
           }
         });
     }
     p.then(function () {
       if (!demo) store(KEY_STORE, $('calRemember').checked ? key : null);
       cal = { vacio: f.v, lleno: f.l, diametro: f.dia };
+      if (!demo) pendingCal = { c: cal, at: Date.now() };
       note(demo
         ? 'Calibración aplicada (modo demo: no se guardó en ThingSpeak).'
         : 'Calibración guardada. El dispositivo la tomará en su próximo ciclo.', 'ok');
