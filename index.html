@@ -113,7 +113,9 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;fl
 .note{font-size:14px;margin-top:10px}
 .note:empty{display:none}
 .note-ok{color:var(--ok)}.note-bad{color:var(--bad)}
-footer{margin-top:28px;text-align:center;color:var(--muted);font-size:12px}
+footer{margin-top:28px;text-align:center;color:var(--muted);font-size:12px;line-height:1.8}
+footer a{color:var(--muted);text-decoration:underline;text-underline-offset:2px}
+footer a:hover{color:var(--text)}
 </style>
 </head>
 <body>
@@ -267,7 +269,11 @@ footer{margin-top:28px;text-align:center;color:var(--muted);font-size:12px}
     <ul class="events" id="events"><li class="empty">Sin eventos en este rango.</li></ul>
   </section>
 
-  <footer>Proyecto final · Conversión de Energía · Universidad El Bosque</footer>
+  <footer>
+    Proyecto final · Conversión de Energía · Universidad El Bosque<br>
+    <a href="https://github.com/Kurten-rep/monitor-tanque" target="_blank" rel="noopener">Código en GitHub</a> ·
+    <a id="tsLink" href="https://thingspeak.mathworks.com/channels/3566154" target="_blank" rel="noopener">Canal en ThingSpeak</a>
+  </footer>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -583,6 +589,9 @@ footer{margin-top:28px;text-align:center;color:var(--muted);font-size:12px}
     $('thrHigh').textContent = u.alto_pct + '%';
     $('interval').textContent = interval + ' min';
     $('demoBadge').hidden = !demo;
+    var chId = cfg.thingspeak.canal_datos.id;
+    $('tsLink').hidden = !chId;
+    if (chId) $('tsLink').href = 'https://thingspeak.mathworks.com/channels/' + encodeURIComponent(chId);
 
     var last = data.length ? data[data.length - 1] : null;
     var lastValid = null;
