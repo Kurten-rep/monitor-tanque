@@ -294,9 +294,20 @@ footer a:hover{color:var(--text)}
       canal_calibracion: { id: '', read_key: '' }
     },
     umbrales: { bajo_pct: 20, alto_pct: 95 },
-    esp32: { intervalo_min: 10, envio_calibracion_s: 20, calibracion_timeout_min: 5 }
+    esp32: { intervalo_s: 30, envio_calibracion_s: 20, calibracion_timeout_min: 5 }
   };
-  var REFRESH_MS = 60 * 1000;       // refresco de la vista principal
+  var REFRESH_MS = 30 * 1000;       // refresco de la vista principal
+
+  // Intervalo del ciclo normal en segundos (acepta el antiguo intervalo_min)
+  function intervaloS() {
+    var e = cfg.esp32 || {};
+    if (e.intervalo_s) return e.intervalo_s;
+    if (e.intervalo_min) return e.intervalo_min * 60;
+    return 30;
+  }
+  function fmtIntervalo(sec) {
+    return sec < 60 ? sec + ' s' : (sec % 60 ? (sec / 60).toFixed(1) : sec / 60) + ' min';
+  }
   var LIVE_MS = 5000;               // refresco de la lectura en vivo durante la calibración
   var FILL_JUMP_PCT = 15;           // subida mínima entre lecturas para contarla como llenado
   var HYST = 3;                     // puntos de % de histéresis para las alertas
@@ -412,7 +423,11 @@ footer a:hover{color:var(--text)}
   function loadData(nDays) {
     if (demo) return Promise.resolve(demoData(nDays));
     var c = cfg.thingspeak.canal_datos;
-    return tsGet('channels/' + encodeURIComponent(c.id) + '/feeds.json?days=' + nDays + '&results=8000', c.read_key)
+    // ThingSpeak entrega máx. 8000 filas: con lecturas cada 30 s, 7 y 30 días se piden muestreados
+    var url = 'channels/' + encodeURIComponent(c.id) + '/feeds.json?days=' + nDays + '&results=8000';
+    var porDia = 86400 / intervaloS();
+    if (porDia * nDays > 8000) url += '&timescale=' + (nDays > 7 ? 30 : 10);
+    return tsGet(url, c.read_key)
       .then(function (j) {
         if (j === -1 || !j.feeds) throw new Error('Canal de datos no encontrado o privado sin clave de lectura');
         return j.feeds.map(rowFrom);
@@ -425,7 +440,7 @@ footer a:hover{color:var(--text)}
 
   // Datos simulados: consumo diario + llenados 1-2 veces por semana + una falla de sensor + una calibración
   function demoData(nDays) {
-    var step = (cfg.esp32.intervalo_min || 10) * 60 * 1000;
+    var step = Math.max(intervaloS(), 300) * 1000;   // demo: como máximo un punto cada 5 min
     var now = Date.now();
     var start = now - 30 * 864e5;
     var seed = 7;
@@ -617,7 +632,7 @@ footer a:hover{color:var(--text)}
 
   function render(raw) {
     var u = cfg.umbrales;
-    var interval = cfg.esp32.intervalo_min || 10;
+    var interval = intervaloS();
     var cap = capacity(cal);
     var data = derive(raw);
 
@@ -626,7 +641,7 @@ footer a:hover{color:var(--text)}
     $('tankName').textContent = cal ? 'de ' + fmtL(cap) + '\nØ ' + cal.diametro + ' cm' : 'Sin calibrar';
     $('thrLow').textContent = u.bajo_pct + '%';
     $('thrHigh').textContent = u.alto_pct + '%';
-    $('interval').textContent = interval + ' min';
+    $('interval').textContent = fmtIntervalo(interval);
     $('demoBadge').hidden = !demo;
     var chId = cfg.thingspeak.canal_datos.id;
     $('tsLink').hidden = !chId;

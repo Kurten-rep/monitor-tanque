@@ -55,7 +55,7 @@ La Write API Key del canal de calibración se escribe en el panel y, si marcas "
 |---|---|
 | `nombre_tanque`, `ubicacion` | Título de la página |
 | `umbrales.bajo_pct`, `umbrales.alto_pct` | Líneas de alerta y estado |
-| `esp32.intervalo_min` | Ciclo normal; la web marca "Sin datos recientes" tras 3 intervalos sin lecturas |
+| `esp32.intervalo_s` | Ciclo normal del ESP32 en segundos (mínimo 20 s por el límite de ThingSpeak) |
 | `esp32.envio_calibracion_s` | Cada cuánto envía el ESP32 en modo calibración (≥ 15 s por el plan gratuito) |
 | `esp32.calibracion_timeout_min` | Tiempo en modo calibración antes de volver a dormir |
 | `esp32.*` (resto) | Parámetros que el ESP32 descarga en cada ciclo |

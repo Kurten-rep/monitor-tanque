@@ -10,7 +10,7 @@
     "alto_pct": 95
   },
   "esp32": {
-    "intervalo_min": 5,
+    "intervalo_s": 30,
     "lecturas_por_medicion": 5,
     "timeout_wifi_s": 10,
     "envio_calibracion_s": 20,
