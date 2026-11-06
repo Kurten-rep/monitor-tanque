@@ -59,6 +59,7 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;fl
 .range-warn{font-size:12px;color:var(--warn);margin-top:10px;max-width:180px;line-height:1.4}
 .dist-note{font-size:13px;color:var(--muted);margin:-8px 0 16px;padding:8px 12px;border-radius:10px;background:var(--bg)}
 
+.linkbtn{background:none;border:0;padding:0;font:inherit;color:var(--water);cursor:pointer;text-decoration:underline}
 .stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .stat{border:1px solid var(--line);border-radius:12px;padding:14px;min-width:0}
 .stat .k{font-size:13px;color:var(--muted)}
@@ -243,9 +244,9 @@ footer a:hover{color:var(--text)}
           <div class="s" id="lastDate"></div>
         </div>
         <div class="stat">
-          <div class="k">Último llenado</div>
-          <div class="v" id="lastFill">--</div>
-          <div class="s" id="lastFillDate"></div>
+          <div class="k">Calibración</div>
+          <div class="v" id="calState">--</div>
+          <div class="s"><span id="calSummary"></span> <button class="linkbtn" id="calEdit" type="button">Editar</button></div>
         </div>
       </div>
       <div class="thresholds">
@@ -309,7 +310,6 @@ footer a:hover{color:var(--text)}
     return sec < 60 ? sec + ' s' : (sec % 60 ? (sec / 60).toFixed(1) : sec / 60) + ' min';
   }
   var LIVE_MS = 5000;               // refresco de la lectura en vivo durante la calibración
-  var FILL_JUMP_PCT = 15;           // subida mínima entre lecturas para contarla como llenado
   var HYST = 3;                     // puntos de % de histéresis para las alertas
   var RANGE_TOL_CM = 3;             // margen antes de marcar una lectura como fuera de rango
   var MIN_SPAN_CM = 5;            // diferencia mínima entre "vacío" y "lleno"
@@ -549,8 +549,7 @@ footer a:hover{color:var(--text)}
       prevRange = false;
       if (d.pct == null) return;
       if (pv) {
-        if (d.pct - pv.pct >= FILL_JUMP_PCT) ev.push({ t: d.t, kind: 'fill', pct: d.pct });
-        else if (lowArmed && d.pct < u.bajo_pct) { ev.push({ t: d.t, kind: 'low', pct: d.pct }); lowArmed = false; }
+        if (lowArmed && d.pct < u.bajo_pct) { ev.push({ t: d.t, kind: 'low', pct: d.pct }); lowArmed = false; }
         else if (highArmed && d.pct > u.alto_pct) { ev.push({ t: d.t, kind: 'high', pct: d.pct }); highArmed = false; }
       } else {
         lowArmed = d.pct >= u.bajo_pct;
@@ -568,7 +567,6 @@ footer a:hover{color:var(--text)}
     ul.innerHTML = '';
     if (!ev.length) { ul.innerHTML = '<li class="empty">Sin eventos en este rango.</li>'; return; }
     var map = {
-      fill: ['Llenado detectado', '💧', '--water'],
       low: ['Nivel bajo', '⚠️', '--warn'],
       high: ['Nivel alto', '⬆️', '--bad'],
       err: ['Falla del sensor', '✖', '--idle'],
@@ -670,10 +668,10 @@ footer a:hover{color:var(--text)}
     $('lastDate').textContent = last ? fmtDate(last.t) : 'sin datos';
 
     var ev = findEvents(data);
-    var fills = ev.filter(function (e) { return e.kind === 'fill'; });
-    var lf = fills.length ? fills[fills.length - 1] : null;
-    $('lastFill').textContent = lf ? ago(lf.t) : '--';
-    $('lastFillDate').textContent = lf ? fmtDate(lf.t) : 'no hubo en este rango';
+    $('calState').textContent = cal ? 'Calibrado' : 'Sin calibrar';
+    $('calSummary').textContent = cal
+      ? 'vacío ' + cal.vacio + ' cm · lleno ' + cal.lleno + ' cm · Ø ' + cal.diametro + ' cm ·'
+      : 'Mide vacío y lleno en el panel ·';
 
     renderEvents(ev);
     renderChart(data);
@@ -869,6 +867,7 @@ footer a:hover{color:var(--text)}
     });
   });
   $('refreshBtn').addEventListener('click', refresh);
+  $('calEdit').addEventListener('click', function () { openCal(); $('cal').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
   $('calBtn').addEventListener('click', function () { if ($('cal').hidden) openCal(); else closeCal(); });
   $('calClose').addEventListener('click', closeCal);
   $('calSave').addEventListener('click', saveCal);
