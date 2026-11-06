@@ -149,12 +149,10 @@ footer a:hover{color:var(--text)}
       <button class="btn" id="calClose" type="button">Cerrar</button>
     </div>
     <ol class="steps">
-      <li>Con el dispositivo encendido, la distancia de abajo se actualiza sola cada ~<span id="calEvery">30</span> s.</li>
-      <li>Con el tanque <b>vacío</b>, espera una lectura nueva y pulsa <b>Usar lectura actual</b>.</li>
-      <li>Con el tanque <b>lleno</b>, haz lo mismo. Si ya conoces una distancia, puedes escribirla a mano.</li>
-      <li>Escribe el <b>diámetro promedio</b> y pulsa <b>Guardar calibración</b>.</li>
+      <li>Mide el <b>diámetro promedio</b> del tanque y su <b>altura total</b>, del piso (fondo) a la tapa, donde va el sensor.</li>
+      <li>Escríbelos abajo, pega la Write API Key y pulsa <b>Guardar calibración</b>.</li>
     </ol>
-    <p class="dist-note">Todas las medidas son <b>distancias desde el sensor</b> (en la tapa) hacia abajo: a más agua, menor distancia. Por eso "vacío" siempre es mayor que "lleno".</p>
+    <p class="dist-note">El nivel se mide desde el <b>piso del tanque</b>. El <b>100 %</b> corresponde al agua a <b>25 cm por debajo de la tapa</b>: más cerca de eso el sensor no puede medir (zona muerta). Por eso la altura útil es la altura total menos 25 cm.</p>
     <div class="cal-grid">
       <div class="live" aria-live="polite">
         <div class="status st-idle" id="liveState"><span class="dot"></span><span id="liveStateTxt">Esperando al dispositivo…</span></div>
@@ -169,22 +167,11 @@ footer a:hover{color:var(--text)}
           <div class="err" id="calDiaErr"></div>
         </div>
         <div class="field">
-          <label for="calVacio">#1 Tanque vacío: distancia sensor–fondo (cm)</label>
-          <div class="row">
-            <input class="input" id="calVacio" type="number" inputmode="decimal" min="1" step="0.1" placeholder="Ej. 125">
-            <button class="btn" id="useVacio" type="button" disabled>Usar lectura actual</button>
-          </div>
-          <div class="err" id="calVacioErr"></div>
+          <label for="calAlt">Altura total del tanque, del piso a la tapa (cm)</label>
+          <input class="input" id="calAlt" type="number" inputmode="decimal" min="1" step="0.1" placeholder="Ej. 150">
+          <div class="err" id="calAltErr"></div>
         </div>
-        <div class="field">
-          <label for="calLleno">#2 Tanque lleno: distancia sensor–agua (cm)</label>
-          <div class="row">
-            <input class="input" id="calLleno" type="number" inputmode="decimal" min="1" step="0.1" placeholder="Ej. 25">
-            <button class="btn" id="useLleno" type="button" disabled>Usar lectura actual</button>
-          </div>
-          <div class="err" id="calLlenoErr"></div>
-        </div>
-        <div class="preview" id="calPreview">Completa los tres valores para ver la capacidad estimada.</div>
+        <div class="preview" id="calPreview">Completa los dos valores para ver la capacidad estimada.</div>
         <div class="field" id="calKeyField">
           <label for="calKey">Write API Key del canal de calibración</label>
           <input class="input" id="calKey" type="password" autocomplete="off" spellcheck="false" placeholder="Solo quien calibra la necesita">
@@ -317,7 +304,7 @@ footer a:hover{color:var(--text)}
   var MODE_CAL = 1;                 // field2 = 1 → el dispositivo está en modo calibración
   var ERR_SENSOR = 1;               // field3 = 1 → falla del sensor
   var KEY_STORE = 'tanque.cal_write_key';
-  var DEMO_CAL = { vacio: 125, lleno: 25, diametro: 110 };
+  var DEMO_CAL = { vacio: 125, lleno: 25, diametro: 110 };   // vacío = altura total, lleno = zona muerta
 
   var cfg = DEFAULTS;
   var cal = null;                   // { vacio, lleno, diametro } en cm
@@ -371,8 +358,8 @@ footer a:hover{color:var(--text)}
   }
   function rangeText(d, c, out) {
     return out === 'bajo'
-      ? 'Lectura fuera de rango: el sensor marca ' + d.toFixed(1) + ' cm, más lejos que el fondo (' + c.vacio + ' cm). Revise la calibración "vacío".'
-      : 'Lectura fuera de rango: el sensor marca ' + d.toFixed(1) + ' cm, más cerca que "lleno" (' + c.lleno + ' cm). Posible desborde o calibración "lleno" incorrecta.';
+      ? 'Lectura fuera de rango: el sensor marca ' + d.toFixed(1) + ' cm, más lejos que el fondo (' + c.vacio + ' cm). Revise la altura total del tanque.'
+      : 'Lectura fuera de rango: el sensor marca ' + d.toFixed(1) + ' cm, más cerca que "lleno" (' + c.lleno + ' cm). El agua está a menos de 25 cm de la tapa (zona muerta): posible desborde.';
   }
 
   // ---------- ThingSpeak ----------
@@ -668,10 +655,10 @@ footer a:hover{color:var(--text)}
     $('lastDate').textContent = last ? fmtDate(last.t) : 'sin datos';
 
     var ev = findEvents(data);
-    $('calState').textContent = cal ? 'Calibrado' : 'Sin calibrar';
+    $('calState').textContent = cal ? 'Ø ' + cal.diametro + ' cm' : '--';
     $('calSummary').textContent = cal
-      ? 'vacío ' + cal.vacio + ' cm · lleno ' + cal.lleno + ' cm · Ø ' + cal.diametro + ' cm ·'
-      : 'Mide vacío y lleno en el panel ·';
+      ? 'altura total ' + cal.vacio + ' cm ·'
+      : 'faltan diámetro y altura ·';
 
     renderEvents(ev);
     renderChart(data);
@@ -693,7 +680,7 @@ footer a:hover{color:var(--text)}
   }
 
   // ---------- Calibración ----------
-  var FIELDS = ['calDia', 'calVacio', 'calLleno', 'calKey'];
+  var FIELDS = ['calDia', 'calAlt', 'calKey'];
 
   function setErr(id, text) {
     $(id + 'Err').textContent = text || '';
@@ -706,7 +693,9 @@ footer a:hover{color:var(--text)}
     n.className = 'note' + (kind === 'ok' ? ' note-ok' : kind === 'bad' ? ' note-bad' : '');
   }
   function readForm() {
-    return { dia: num($('calDia').value), v: num($('calVacio').value), l: num($('calLleno').value) };
+    // El sensor va en la tapa: vacío = altura total; lleno = zona muerta (25 cm bajo la tapa)
+    var h = num($('calAlt').value);
+    return { dia: num($('calDia').value), h: h, v: h, l: DEAD_ZONE_CM };
   }
 
   function updatePreview() {
@@ -714,17 +703,16 @@ footer a:hover{color:var(--text)}
     if (f.dia > 0 && f.v != null && f.l != null && f.v - f.l >= MIN_SPAN_CM) {
       var hu = f.v - f.l;
       var cap = Math.PI * Math.pow(f.dia / 2, 2) * hu / 1000;
-      var txt = 'Altura útil <b>' + hu.toFixed(1) + ' cm</b> · capacidad estimada <b>' + fmtL(cap) + '</b>';
+      var txt = 'Altura útil <b>' + hu.toFixed(1) + ' cm</b> (' + f.h + ' − ' + DEAD_ZONE_CM + ') · capacidad estimada <b>' + fmtL(cap) + '</b>';
       if (lastLive && lastLive.d != null && lastLive.err !== ERR_SENSOR) {
         var h = Math.max(0, Math.min(hu, f.v - lastLive.d));
         txt += '<br>Con la lectura actual: <b>' + Math.round(h / hu * 100) + '%</b> (' + fmtL(Math.PI * Math.pow(f.dia / 2, 2) * h / 1000) + ')';
         var o = rangeOf(lastLive.d, { vacio: f.v, lleno: f.l });
         if (o) txt += '<br><span style="color:var(--warn)">' + rangeText(lastLive.d, { vacio: f.v, lleno: f.l }, o) + '</span>';
       }
-      if (f.l < DEAD_ZONE_CM) txt += '<br><span style="color:var(--warn)">La distancia "lleno" está cerca de la zona muerta del sensor (~' + DEAD_ZONE_CM + ' cm).</span>';
       p.innerHTML = txt;
     } else {
-      p.textContent = 'Completa los tres valores para ver la capacidad estimada.';
+      p.textContent = 'Completa los dos valores para ver la capacidad estimada.';
     }
   }
 
@@ -740,7 +728,6 @@ footer a:hover{color:var(--text)}
       $('liveDist').textContent = '--';
       $('liveAge').textContent = 'Aún no hay lecturas.';
       setLive('st-idle', 'Esperando al dispositivo…');
-      $('useVacio').disabled = $('useLleno').disabled = true;
       return;
     }
     var active = (Date.now() - L.t) < win;
@@ -750,7 +737,6 @@ footer a:hover{color:var(--text)}
     if (active && !valid) setLive('st-bad', 'El sensor no responde');
     else if (active) setLive('st-ok', 'Dispositivo en línea');
     else setLive('st-idle', 'Sin lecturas recientes: revisa que el dispositivo esté encendido');
-    $('useVacio').disabled = $('useLleno').disabled = !(active && valid);
     updatePreview();
   }
 
@@ -771,10 +757,8 @@ footer a:hover{color:var(--text)}
   function openCal() {
     $('cal').hidden = false;
     $('calBtn').setAttribute('aria-expanded', 'true');
-    $('calEvery').textContent = intervaloS();
     $('calDia').value = cal ? cal.diametro : '';
-    $('calVacio').value = cal ? cal.vacio : '';
-    $('calLleno').value = cal ? cal.lleno : '';
+    $('calAlt').value = cal ? cal.vacio : '';
     var k = recall(KEY_STORE);
     $('calKey').value = k || '';
     $('calRemember').checked = !!k;
@@ -798,10 +782,9 @@ footer a:hover{color:var(--text)}
   function validate(f, key) {
     var ok = true;
     if (!(f.dia > 0)) { setErr('calDia', 'Ingresa el diámetro en cm (mayor que 0).'); ok = false; }
-    if (!(f.v > 0)) { setErr('calVacio', 'Falta la distancia con el tanque vacío.'); ok = false; }
-    if (!(f.l > 0)) { setErr('calLleno', 'Falta la distancia con el tanque lleno.'); ok = false; }
-    if (f.v > 0 && f.l > 0 && f.v - f.l < MIN_SPAN_CM) {
-      setErr('calLleno', 'La distancia "lleno" debe ser al menos ' + MIN_SPAN_CM + ' cm menor que la de "vacío".');
+    if (!(f.h > 0)) { setErr('calAlt', 'Ingresa la altura total del tanque en cm.'); ok = false; }
+    else if (f.h - DEAD_ZONE_CM < MIN_SPAN_CM) {
+      setErr('calAlt', 'La altura debe ser mayor que ' + (DEAD_ZONE_CM + MIN_SPAN_CM) + ' cm: los primeros ' + DEAD_ZONE_CM + ' cm bajo la tapa no se miden.');
       ok = false;
     }
     if (!demo && !key) { setErr('calKey', 'Ingresa la Write API Key del canal de calibración.'); ok = false; }
@@ -871,12 +854,6 @@ footer a:hover{color:var(--text)}
   $('calBtn').addEventListener('click', function () { if ($('cal').hidden) openCal(); else closeCal(); });
   $('calClose').addEventListener('click', closeCal);
   $('calSave').addEventListener('click', saveCal);
-  $('useVacio').addEventListener('click', function () {
-    if (lastLive && lastLive.d != null) { $('calVacio').value = lastLive.d; setErr('calVacio', ''); updatePreview(); }
-  });
-  $('useLleno').addEventListener('click', function () {
-    if (lastLive && lastLive.d != null) { $('calLleno').value = lastLive.d; setErr('calLleno', ''); updatePreview(); }
-  });
   FIELDS.forEach(function (id) {
     $(id).addEventListener('input', function () { setErr(id, ''); updatePreview(); });
   });

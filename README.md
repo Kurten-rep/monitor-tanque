@@ -27,8 +27,8 @@ También puedes forzarlo con `?demo=1` al final de la URL. En demo, la calibraci
 **Canal 2 — Calibración** (lo escribe la web; lo leen la web y el ESP32)
 | Campo | Contenido |
 |---|---|
-| Field 1 | Distancia con tanque vacío (cm) |
-| Field 2 | Distancia con tanque lleno (cm) |
+| Field 1 | Distancia con tanque vacío (cm) = altura total del tanque (sensor en la tapa) |
+| Field 2 | Distancia con tanque lleno (cm) = 25 cm (zona muerta del sensor) |
 | Field 3 | Diámetro promedio del tanque (cm) |
 
 Pon los **Channel ID** en `config.json → thingspeak`. Si un canal es privado, pon su **Read API Key** en `read_key`; si es público, déjala vacía.
@@ -41,11 +41,13 @@ Pon los **Channel ID** en `config.json → thingspeak`. Si un canal es privado, 
 Como el ESP32 guarda la distancia cruda, recalibrar recalcula todo el histórico.
 
 ## Calibración
-Es manual, desde la página (el dispositivo no tiene botón):
-1. Con el ESP32 encendido, la distancia llega en su ciclo normal (cada `intervalo_s`).
-2. En la página, **Calibrar** abre el panel con la última lectura (se refresca cada 5 s).
-3. Usa la lectura actual para **#1 vacío** y **#2 lleno**, o escribe un valor a mano, e ingresa el **diámetro**.
-4. **Guardar calibración** escribe los tres valores en una sola fila del canal de calibración.
+Es manual, desde la página (el dispositivo no tiene botón). Solo se ingresan dos datos:
+1. **Diámetro promedio** del tanque.
+2. **Altura total** del tanque, del piso (fondo) a la tapa, donde va el sensor.
+
+El nivel se mide desde el piso. El **100 %** es el agua a **25 cm por debajo de la tapa**, porque el sensor no mide más cerca (zona muerta). La página guarda `vacío = altura total` y `lleno = 25 cm`, así que la altura útil es `altura total − 25 cm`.
+
+**Guardar calibración** escribe los tres valores en una sola fila del canal de calibración; el ESP32 los toma en su siguiente ciclo.
 
 La Write API Key del canal de calibración se escribe en el panel y, si marcas "Recordar", queda solo en tu navegador.
 
