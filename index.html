@@ -652,7 +652,8 @@ footer a:hover{color:var(--text)}
     $('capHint').textContent = cap ? 'de ' + fmtL(cap) : 'requiere calibración';
     $('tankCap').textContent = lastValid ? fmtL(lastValid.litros) : '';
     $('lastAgo').textContent = last ? ago(last.t) : '--';
-    $('lastDate').textContent = last ? fmtDate(last.t) : 'sin datos';
+    $('lastDate').textContent = !last ? 'sin datos'
+      : (last.err === ERR_SENSOR || last.d == null ? 'falla del sensor' : 'sensor a ' + last.d.toFixed(1) + ' cm') + ' · ' + fmtDate(last.t);
 
     var ev = findEvents(data);
     $('calState').textContent = cal ? 'Ø ' + cal.diametro + ' cm' : '--';
