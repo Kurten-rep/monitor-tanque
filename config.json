@@ -2,8 +2,14 @@
   "nombre_tanque": "Tanque principal",
   "ubicacion": "Finca",
   "thingspeak": {
-    "canal_datos": { "id": "3566154", "read_key": "DEZK1G0KP54S1KNF" },
-    "canal_calibracion": { "id": "3566159", "read_key": "11LLFW3QUB309ECQ" }
+    "canal_datos": {
+      "id": "3566154",
+      "read_key": "DEZK1G0KP54S1KNF"
+    },
+    "canal_calibracion": {
+      "id": "3566159",
+      "read_key": "11LLFW3QUB309ECQ"
+    }
   },
   "umbrales": {
     "bajo_pct": 20,
@@ -12,8 +18,6 @@
   "esp32": {
     "intervalo_s": 30,
     "lecturas_por_medicion": 5,
-    "timeout_wifi_s": 10,
-    "envio_calibracion_s": 20,
-    "calibracion_timeout_min": 5
+    "timeout_wifi_s": 10
   }
 }

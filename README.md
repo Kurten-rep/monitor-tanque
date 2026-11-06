@@ -21,7 +21,7 @@ También puedes forzarlo con `?demo=1` al final de la URL. En demo, la calibraci
 | Campo | Contenido |
 |---|---|
 | Field 1 | Distancia medida por el sensor (cm), **cruda** |
-| Field 2 | Modo (0 = normal, 1 = calibración) |
+| Field 2 | Modo (siempre 0; el 1 era el antiguo modo calibración por botón) |
 | Field 3 | Código de error (0 = OK, 1 = falla del sensor) |
 
 **Canal 2 — Calibración** (lo escribe la web; lo leen la web y el ESP32)
@@ -41,8 +41,9 @@ Pon los **Channel ID** en `config.json → thingspeak`. Si un canal es privado, 
 Como el ESP32 guarda la distancia cruda, recalibrar recalcula todo el histórico.
 
 ## Calibración
-1. Presiona el **botón del dispositivo**: despierta al ESP32 y entra en modo calibración (LED encendido, envía la distancia cada ~20 s durante ~5 min).
-2. En la página, **Calibrar** abre el panel con la lectura en vivo (se refresca cada 5 s).
+Es manual, desde la página (el dispositivo no tiene botón):
+1. Con el ESP32 encendido, la distancia llega en su ciclo normal (cada `intervalo_s`).
+2. En la página, **Calibrar** abre el panel con la última lectura (se refresca cada 5 s).
 3. Usa la lectura actual para **#1 vacío** y **#2 lleno**, o escribe un valor a mano, e ingresa el **diámetro**.
 4. **Guardar calibración** escribe los tres valores en una sola fila del canal de calibración.
 
@@ -56,6 +57,4 @@ La Write API Key del canal de calibración se escribe en el panel y, si marcas "
 | `nombre_tanque`, `ubicacion` | Título de la página |
 | `umbrales.bajo_pct`, `umbrales.alto_pct` | Líneas de alerta y estado |
 | `esp32.intervalo_s` | Ciclo normal del ESP32 en segundos (mínimo 20 s por el límite de ThingSpeak) |
-| `esp32.envio_calibracion_s` | Cada cuánto envía el ESP32 en modo calibración (≥ 15 s por el plan gratuito) |
-| `esp32.calibracion_timeout_min` | Tiempo en modo calibración antes de volver a dormir |
 | `esp32.*` (resto) | Parámetros que el ESP32 descarga en cada ciclo |

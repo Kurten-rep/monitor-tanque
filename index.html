@@ -148,7 +148,7 @@ footer a:hover{color:var(--text)}
       <button class="btn" id="calClose" type="button">Cerrar</button>
     </div>
     <ol class="steps">
-      <li>Presiona el botón <b>Calibrar</b> del dispositivo. Su LED se enciende y envía la distancia cada ~<span id="calEvery">20</span> s.</li>
+      <li>Con el dispositivo encendido, la distancia de abajo se actualiza sola cada ~<span id="calEvery">30</span> s.</li>
       <li>Con el tanque <b>vacío</b>, espera una lectura nueva y pulsa <b>Usar lectura actual</b>.</li>
       <li>Con el tanque <b>lleno</b>, haz lo mismo. Si ya conoces una distancia, puedes escribirla a mano.</li>
       <li>Escribe el <b>diámetro promedio</b> y pulsa <b>Guardar calibración</b>.</li>
@@ -294,7 +294,7 @@ footer a:hover{color:var(--text)}
       canal_calibracion: { id: '', read_key: '' }
     },
     umbrales: { bajo_pct: 20, alto_pct: 95 },
-    esp32: { intervalo_s: 30, envio_calibracion_s: 20, calibracion_timeout_min: 5 }
+    esp32: { intervalo_s: 30 }
   };
   var REFRESH_MS = 30 * 1000;       // refresco de la vista principal
 
@@ -313,7 +313,7 @@ footer a:hover{color:var(--text)}
   var HYST = 3;                     // puntos de % de histéresis para las alertas
   var RANGE_TOL_CM = 3;             // margen antes de marcar una lectura como fuera de rango
   var MIN_SPAN_CM = 5;            // diferencia mínima entre "vacío" y "lleno"
-  var DEAD_ZONE_CM = 20;            // zona muerta aproximada del JSN-SR04T
+  var DEAD_ZONE_CM = 25;            // zona muerta medida del JSN-SR04T-V3.3 (~24 cm) + margen
   var MODE_CAL = 1;                 // field2 = 1 → el dispositivo está en modo calibración
   var ERR_SENSOR = 1;               // field3 = 1 → falla del sensor
   var KEY_STORE = 'tanque.cal_write_key';
@@ -737,7 +737,7 @@ footer a:hover{color:var(--text)}
 
   function showLive() {
     var L = lastLive;
-    var win = (cfg.esp32.envio_calibracion_s || 20) * 3 * 1000;
+    var win = Math.max(intervaloS() * 3, 60) * 1000;   // 3 ciclos sin lecturas = sin conexión
     if (!L || L.t == null) {
       $('liveDist').textContent = '--';
       $('liveAge').textContent = 'Aún no hay lecturas.';
@@ -745,13 +745,13 @@ footer a:hover{color:var(--text)}
       $('useVacio').disabled = $('useLleno').disabled = true;
       return;
     }
-    var active = L.modo === MODE_CAL && (Date.now() - L.t) < win;
+    var active = (Date.now() - L.t) < win;
     var valid = L.err !== ERR_SENSOR && L.d != null;
     $('liveDist').textContent = valid ? L.d.toFixed(1) + ' cm' : 'Error';
     $('liveAge').textContent = 'Lectura ' + ago(L.t) + ' · ' + fmtDate(L.t);
     if (active && !valid) setLive('st-bad', 'El sensor no responde');
-    else if (active) setLive('st-ok', 'Dispositivo en modo calibración');
-    else setLive('st-idle', 'Esperando al dispositivo… presiona su botón');
+    else if (active) setLive('st-ok', 'Dispositivo en línea');
+    else setLive('st-idle', 'Sin lecturas recientes: revisa que el dispositivo esté encendido');
     $('useVacio').disabled = $('useLleno').disabled = !(active && valid);
     updatePreview();
   }
@@ -760,7 +760,7 @@ footer a:hover{color:var(--text)}
     if (demo) {
       if (demoLiveD == null) demoLiveD = 78;
       demoLiveD = +(demoLiveD + (Math.random() - 0.5) * 0.8).toFixed(1);
-      lastLive = { t: Date.now() - Math.round(Math.random() * 15000), d: demoLiveD, modo: MODE_CAL, err: 0 };
+      lastLive = { t: Date.now() - Math.round(Math.random() * 15000), d: demoLiveD, modo: 0, err: 0 };
       showLive();
       return;
     }
@@ -773,7 +773,7 @@ footer a:hover{color:var(--text)}
   function openCal() {
     $('cal').hidden = false;
     $('calBtn').setAttribute('aria-expanded', 'true');
-    $('calEvery').textContent = cfg.esp32.envio_calibracion_s || 20;
+    $('calEvery').textContent = intervaloS();
     $('calDia').value = cal ? cal.diametro : '';
     $('calVacio').value = cal ? cal.vacio : '';
     $('calLleno').value = cal ? cal.lleno : '';
